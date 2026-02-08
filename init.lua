@@ -26,5 +26,7 @@ require("lazy").setup({
 	require("plugins.jdtls"),
 	require("plugins.autopairs"),
 	require("plugins.gitsigns"),
+	require("plugins.indent-line"),
 	require("plugins.alpha"),
+	require("plugins.misc"),
 })
