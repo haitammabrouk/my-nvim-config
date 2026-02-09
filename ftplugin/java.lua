@@ -1,34 +1,17 @@
-local jdtls = require("jdtls")
-
--- Get Java home from SDKMAN
-local java_home = vim.fn.expand("~/.sdkman/candidates/java/current")
 local home = os.getenv("HOME")
-
--- Function to set up keymaps when LSP attaches
-local function on_attach(client, bufnr)
-	local opts = { buffer = bufnr, noremap = true, silent = true }
-
-	vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-	vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
-	vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
-	vim.keymap.set("n", "<leader>f", vim.lsp.buf.format, opts)
-	vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
-end
-
--- Get capabilities from nvim-cmp
-local capabilities = vim.lsp.protocol.make_client_capabilities()
-local cmp_lsp_ok, cmp_lsp = pcall(require, "cmp_nvim_lsp")
-if cmp_lsp_ok then
-	capabilities = cmp_lsp.default_capabilities(capabilities)
-end
-
--- Workspace directory
+local workspace_path = home .. "/.local/share/nvim/jdtls-workspace/"
 local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":p:h:t")
-local workspace_dir = vim.fn.stdpath("data") .. "/jdtls-workspace/" .. project_name
+local workspace_dir = workspace_path .. project_name
+
+local status, jdtls = pcall(require, "jdtls")
+if not status then
+	return
+end
+local extendedClientCapabilities = jdtls.extendedClientCapabilities
 
 local config = {
 	cmd = {
-		java_home .. "/bin/java", -- Explicitly use Java 21
+		"java",
 		"-Declipse.application=org.eclipse.jdt.ls.core.id1",
 		"-Dosgi.bundles.defaultStartLevel=4",
 		"-Declipse.product=org.eclipse.jdt.ls.core.product",
@@ -42,25 +25,35 @@ local config = {
 		"java.base/java.lang=ALL-UNNAMED",
 		"-javaagent:" .. home .. "/.local/share/nvim/mason/packages/jdtls/lombok.jar",
 		"-jar",
-		vim.fn.glob(
-			vim.fn.expand("~/.local/share/nvim/mason/packages/jdtls/plugins/org.eclipse.equinox.launcher_*.jar")
-		),
+		vim.fn.glob(home .. "/.local/share/nvim/mason/packages/jdtls/plugins/org.eclipse.equinox.launcher_*.jar"),
 		"-configuration",
-		vim.fn.expand("~/.local/share/nvim/mason/packages/jdtls/config_linux"),
+		home .. "/.local/share/nvim/mason/packages/jdtls/config_mac",
 		"-data",
 		workspace_dir,
 	},
-
-	root_dir = vim.fs.dirname(vim.fs.find({ "gradlew", ".git", "mvnw" }, { upward = true })[1]),
-
-	on_attach = on_attach,
-	capabilities = capabilities,
+	root_dir = require("jdtls.setup").find_root({ ".git", "mvnw", "gradlew", "pom.xml", "build.gradle" }),
 
 	settings = {
 		java = {
-			home = java_home,
 			signatureHelp = { enabled = true },
-			contentProvider = { preferred = "fernflower" },
+			extendedClientCapabilities = extendedClientCapabilities,
+			maven = {
+				downloadSources = true,
+			},
+			referencesCodeLens = {
+				enabled = true,
+			},
+			references = {
+				includeDecompiledSources = true,
+			},
+			inlayHints = {
+				parameterNames = {
+					enabled = "all", -- literals, all, none
+				},
+			},
+			format = {
+				enabled = true,
+			},
 		},
 	},
 
@@ -68,5 +61,26 @@ local config = {
 		bundles = {},
 	},
 }
+require("jdtls").start_or_attach(config)
 
-jdtls.start_or_attach(config)
+vim.keymap.set("n", "<leader>co", "<Cmd>lua require'jdtls'.organize_imports()<CR>", { desc = "Organize Imports" })
+vim.keymap.set("n", "<leader>crv", "<Cmd>lua require('jdtls').extract_variable()<CR>", { desc = "Extract Variable" })
+vim.keymap.set(
+	"v",
+	"<leader>crv",
+	"<Esc><Cmd>lua require('jdtls').extract_variable(true)<CR>",
+	{ desc = "Extract Variable" }
+)
+vim.keymap.set("n", "<leader>crc", "<Cmd>lua require('jdtls').extract_constant()<CR>", { desc = "Extract Constant" })
+vim.keymap.set(
+	"v",
+	"<leader>crc",
+	"<Esc><Cmd>lua require('jdtls').extract_constant(true)<CR>",
+	{ desc = "Extract Constant" }
+)
+vim.keymap.set(
+	"v",
+	"<leader>crm",
+	"<Esc><Cmd>lua require('jdtls').extract_method(true)<CR>",
+	{ desc = "Extract Method" }
+)
